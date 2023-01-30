@@ -1,0 +1,100 @@
+---
+title: "Untitled"
+author: "Daniel Abreu"
+date: "25/01/2023"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+This R program trains a random forest on data from accelerometers. The objective is to train a model to identifying the quality of the activity the participant was doing. After proessing the data, I show that Random Forest model attains good performance in a simulated out-of-sample exercise. The final model is then used to predict data on a entire new (testing) data set.
+
+
+```{r}
+# Load packages
+library(caret)
+library(randomForest)
+
+#########################################
+#Import data
+#########################################
+
+setwd("C:/Users/bpu313718/Desktop")
+pml_testing <- read.csv("./pml-testing.csv")
+pml_training <- read.csv("./pml-training.csv")
+
+
+
+#########################################
+# Data processing
+#########################################
+
+nzv <- nearZeroVar(pml_training) # remove near zero variacnce vars
+ptrain <- pml_training[,-nzv] 
+
+mostlyNA <- sapply(ptrain, function(x) mean(is.na(x))) > 0.95 # remove variables that are mostly NA
+ptrain <- ptrain[,mostlyNA==F]
+
+ptrain <- ptrain[, -(1:5)] # remove vars that don't make intuitive sense for prediction
+
+
+# Split training dataset into estimation and validation datasets
+
+set.seed(1)
+iTrain <- createDataPartition(y=ptrain$classe, p=0.75, list=F)
+ptrain1 <- ptrain[iTrain,]
+ptrain2 <- ptrain[-iTrain,]
+
+
+#########################################
+# Model Building
+#########################################
+
+# instruct train to use 3-fold CV to select optimal tuning parameters
+fitControl <- trainControl(method="cv", number=5, verboseIter=F)
+
+# fit model on ptrain1
+fit <- train(classe ~ ., data=ptrain1, method="rf", trControl=fitControl)
+
+
+#########################################
+# Model Evaluation and Selection
+#########################################
+
+# predict classe in validation set
+preds <- predict(fit, newdata=ptrain2)
+
+# confusion matrix to get the estimate of out-of-sample error
+confusionMatrix(as.factor(ptrain2$classe), preds)
+
+
+#########################################
+# Re-training the Selected Model using the full training set
+#########################################
+
+fitControl <- trainControl(method="cv", number=5, verboseIter=F)
+fit <- train(classe ~ ., data=ptrain, method="rf", trControl=fitControl)
+
+
+#########################################
+# Making Test Set Predictions
+#########################################
+
+
+nzv_t <- nearZeroVar(pml_testing) # remove near zero variacnce vars
+ptest <- pml_training[,-nzv_t] 
+
+mostlyNA <- sapply(ptest, function(x) mean(is.na(x))) > 0.95 # remove variables that are mostly NA
+ptest <- ptest[,mostlyNA==F]
+
+ptest <- ptest[, -(1:5)] # remove vars that don't make intuitive sense for prediction
+
+# predict on test set
+preds <- predict(fit, newdata=ptest)
+
+# confusion matrix to get the estimate of out-of-sample error
+confusionMatrix(as.factor(ptest$classe), preds)
+```
